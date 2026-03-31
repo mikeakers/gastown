@@ -1077,8 +1077,14 @@ func (e *Engineer) HandleMRInfoSuccess(mr *MRInfo, result ProcessResult) {
 		// Remote delete — only polecat branches. Non-polecat branches may belong
 		// to contributor forks with open upstream PRs; deleting them from origin
 		// causes GitHub to auto-close those PRs via head_ref_delete. (GH#2669)
+		// gas-fk4: Also skip deletion for polecat branches that have open PRs.
+		// When merge_strategy=pr, polecat branches have GitHub PRs that should
+		// be closed via gh pr merge (showing "merged"), not via branch deletion
+		// (which shows "closed" and destroys the PR audit trail).
 		if isPolecat {
-			if err := e.git.DeleteRemoteBranch("origin", mr.Branch); err != nil {
+			if e.git.HasOpenPR(mr.Branch) {
+				_, _ = fmt.Fprintf(e.output, "[Engineer] Skipping remote branch delete for %s: open PR exists (gas-fk4)\n", mr.Branch)
+			} else if err := e.git.DeleteRemoteBranch("origin", mr.Branch); err != nil {
 				_, _ = fmt.Fprintf(e.output, "[Engineer] Warning: failed to delete remote branch %s: %v\n", mr.Branch, err)
 			} else {
 				_, _ = fmt.Fprintf(e.output, "[Engineer] Deleted remote branch: %s\n", mr.Branch)

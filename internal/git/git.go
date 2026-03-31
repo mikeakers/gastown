@@ -864,6 +864,21 @@ func (g *Git) DeleteRemoteBranch(remote, branch string) error {
 	return err
 }
 
+// HasOpenPR checks whether the given branch has an open pull request on GitHub.
+// Uses the gh CLI to query for open PRs with the branch as head ref.
+// Returns false on any error (fail-open: branch deletion proceeds if gh is unavailable).
+func (g *Git) HasOpenPR(branch string) bool {
+	cmd := exec.Command("gh", "pr", "list", "--head", branch, "--state", "open", "--json", "number", "--limit", "1")
+	cmd.Dir = g.workDir
+	out, err := cmd.Output()
+	if err != nil {
+		return false // fail-open: can't determine PR state, allow deletion
+	}
+	out = bytes.TrimSpace(out)
+	// Empty array "[]" means no open PRs
+	return len(out) > 2
+}
+
 // ListRemoteRefs returns remote ref names matching a prefix using ls-remote.
 // The prefix filters refs (e.g., "refs/heads/polecat/" for all polecat branches).
 // Returns full ref names like "refs/heads/polecat/furiosa-abc123".
