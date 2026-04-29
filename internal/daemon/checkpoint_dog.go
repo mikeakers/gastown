@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -109,7 +110,21 @@ func (d *Daemon) checkpointRigPolecats(rigName string) (int, int) {
 			continue
 		}
 
-		workDir := filepath.Join(polecatsDir, polecatName)
+		// Polecat worktree layout: <polecatsDir>/<name>/<rigName>/ — the
+		// outer <name>/ dir is just a container holding the named worktree
+		// plus per-polecat scaffolding (.claude/, etc.). The inner directory
+		// is the actual git worktree. Earlier versions of this code passed
+		// just <polecatsDir>/<name>/ which has no .git — git operations would
+		// walk up the tree to the top-level workspace's .git and commit
+		// "WIP: checkpoint (auto)" on the WORKSPACE's branch (usually main),
+		// not the polecat's branch. (gt-checkpoint-workdir fix.)
+		workDir := filepath.Join(polecatsDir, polecatName, rigName)
+		if !isGitWorktree(workDir) {
+			// Skip silently — polecat may be mid-spawn, or layout differs
+			// (defensive against future layout changes). Don't fall back to
+			// the parent dir; the wrong-dir bug is exactly what this fixes.
+			continue
+		}
 		if d.checkpointWorktree(workDir, rigName, polecatName) {
 			checkpointed++
 		}
@@ -172,6 +187,16 @@ func (d *Daemon) checkpointWorktree(workDir, rigName, polecatName string) bool {
 
 	d.logger.Printf("checkpoint_dog: created WIP checkpoint in %s/%s", rigName, polecatName)
 	return true
+}
+
+// isGitWorktree reports whether the given directory is the root of a git
+// worktree (has its own `.git` file or directory). Used to guard checkpoint
+// commits against the "wrong-dir" failure mode where git operations in a
+// non-worktree directory walk up the filesystem tree and commit on the
+// parent workspace's branch.
+func isGitWorktree(dir string) bool {
+	_, err := os.Stat(filepath.Join(dir, ".git"))
+	return err == nil
 }
 
 // runGitCmd executes a git command in the given directory and returns stdout.
