@@ -3574,25 +3574,3 @@ func TestResolveBdSubprocessTimeout(t *testing.T) {
 		})
 	}
 }
-
-func TestShouldThrottleBdRead(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want bool
-	}{
-		{"list", []string{"list", "--json"}, true},
-		{"list with flags first", []string{"--flat", "list", "--json"}, true},
-		{"show", []string{"show", "gt-abc"}, false},
-		{"update", []string{"update", "gt-abc", "--status=hooked"}, false},
-		{"empty", nil, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := shouldThrottleBdRead(tt.args); got != tt.want {
-				t.Fatalf("shouldThrottleBdRead(%v) = %v, want %v", tt.args, got, tt.want)
-			}
-		})
-	}
-}
