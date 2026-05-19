@@ -2082,8 +2082,11 @@ func (m *Manager) PoolStatus() (active int, names []string) {
 	return m.namePool.ActiveCount(), m.namePool.ActiveNames()
 }
 
+const polecatListLoadConcurrency = 2
+
 // List returns all polecats in the rig.
-// Loads polecat state in parallel to avoid sequential bd subprocess overhead.
+// Loads polecat state with bounded parallelism; unbounded bd subprocess fans can
+// amplify witness/refinery/polecat load into Dolt query storms.
 func (m *Manager) List() ([]*Polecat, error) {
 	polecatsDir := filepath.Join(m.rig.Path, "polecats")
 
@@ -2107,14 +2110,18 @@ func (m *Manager) List() ([]*Polecat, error) {
 		names = append(names, entry.Name())
 	}
 
-	// Load all polecats in parallel — each loadFromBeads call involves
-	// multiple bd/git subprocess calls that are independent per polecat.
+	// Load polecats in bounded parallel — each loadFromBeads call involves
+	// multiple bd/git subprocess calls, so one worker per polecat is too bursty
+	// when several agents list the pool concurrently.
 	results := make([]*Polecat, len(names))
+	sem := make(chan struct{}, polecatListLoadConcurrency)
 	var wg sync.WaitGroup
 	for i, name := range names {
 		wg.Add(1)
 		go func(idx int, name string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			p, err := m.Get(name)
 			if err != nil {
 				return // Skip invalid polecats (leaves nil in results)

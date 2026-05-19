@@ -240,6 +240,12 @@ func TestListEmpty(t *testing.T) {
 	}
 }
 
+func TestPolecatListLoadConcurrencyIsBounded(t *testing.T) {
+	if polecatListLoadConcurrency < 1 || polecatListLoadConcurrency > 2 {
+		t.Fatalf("polecatListLoadConcurrency = %d, want 1..2", polecatListLoadConcurrency)
+	}
+}
+
 func TestGetNotFound(t *testing.T) {
 	root := t.TempDir()
 	r := &rig.Rig{
