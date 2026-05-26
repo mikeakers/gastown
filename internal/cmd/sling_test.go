@@ -840,10 +840,6 @@ func TestSlingRejectsBeadMissingFromTargetRigBeforeSpawn(t *testing.T) {
 	bdScript := `#!/bin/sh
 set -e
 echo "$*" >> "${BD_LOG}"
-if [ "$1" = "--db" ]; then
-  # The direct target-rig DB lookup must fail: the bead only resolves from HQ.
-  exit 1
-fi
 cmd="$1"
 shift || true
 if [ "$cmd" = "--allow-stale" ]; then
@@ -852,6 +848,10 @@ if [ "$cmd" = "--allow-stale" ]; then
 fi
 case "$cmd" in
   show)
+    if [ "${BEADS_DIR:-}" = "${TARGET_BEADS_DIR}" ]; then
+      # The direct target-rig DB lookup must fail: the bead only resolves from HQ.
+      exit 1
+    fi
     echo '[{"title":"HQ-owned issue","status":"open","assignee":"","description":""}]'
     ;;
   mol|update|cook)
@@ -863,9 +863,9 @@ exit 0
 `
 	bdScriptWindows := `@echo off
 echo %*>>"%BD_LOG%"
-if "%1"=="--db" exit /b 1
 set "cmd=%1"
 if "%cmd%"=="show" (
+  if "%BEADS_DIR%"=="%TARGET_BEADS_DIR%" exit /b 1
   echo [{"title":"HQ-owned issue","status":"open","assignee":"","description":""}]
   exit /b 0
 )
@@ -877,6 +877,7 @@ exit /b 0
 	_ = writeBDStub(t, binDir, bdScript, bdScriptWindows)
 
 	t.Setenv("BD_LOG", logPath)
+	t.Setenv("TARGET_BEADS_DIR", filepath.Join(townRoot, "gastown", "mayor", "rig", ".beads"))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv(EnvGTRole, "mayor")
 	t.Setenv("GT_POLECAT", "")
@@ -970,9 +971,6 @@ func setupCrossDatabaseSlingGuardTest(t *testing.T) (townRoot, logPath string) {
 	bdScript := `#!/bin/sh
 set -e
 echo "$*" >> "${BD_LOG}"
-if [ "$1" = "--db" ]; then
-  exit 1
-fi
 cmd="$1"
 shift || true
 if [ "$cmd" = "--allow-stale" ]; then
@@ -981,6 +979,9 @@ if [ "$cmd" = "--allow-stale" ]; then
 fi
 case "$cmd" in
   show)
+    if [ "${BEADS_DIR:-}" = "${TARGET_BEADS_DIR}" ]; then
+      exit 1
+    fi
     echo '[{"title":"HQ-owned issue","status":"open","assignee":"","description":""}]'
     ;;
   create|update|cook|mol|close|dep)
@@ -992,9 +993,9 @@ exit 0
 `
 	bdScriptWindows := `@echo off
 echo %*>>"%BD_LOG%"
-if "%1"=="--db" exit /b 1
 set "cmd=%1"
 if "%cmd%"=="show" (
+  if "%BEADS_DIR%"=="%TARGET_BEADS_DIR%" exit /b 1
   echo [{"title":"HQ-owned issue","status":"open","assignee":"","description":""}]
   exit /b 0
 )
@@ -1009,6 +1010,7 @@ exit /b 0
 	_ = writeBDStub(t, binDir, bdScript, bdScriptWindows)
 
 	t.Setenv("BD_LOG", logPath)
+	t.Setenv("TARGET_BEADS_DIR", filepath.Join(townRoot, "gastown", "mayor", "rig", ".beads"))
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	t.Setenv(EnvGTRole, "mayor")
 	t.Setenv("GT_POLECAT", "")
